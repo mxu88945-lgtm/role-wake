@@ -35,6 +35,8 @@ export function normalizeState(input = {}, now = Date.now()) {
     roleName: String(input.roleName || '角色').slice(0, 80),
     personaSummary: String(input.personaSummary || '').slice(0, 6000),
     recentSummary: String(input.recentSummary || '').slice(0, 4000),
+    pushDevice: String(input.pushDevice || '').slice(0, 160),
+    pushUrl: String(input.pushUrl || '').slice(0, 500),
     lastChatAt: Number(input.lastChatAt || 0),
     lastTickAt: Number(input.lastTickAt || now),
     lastDecisionAt: Number(input.lastDecisionAt || 0),

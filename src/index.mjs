@@ -11,6 +11,7 @@ import {
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
 const MAX_ROLES = 100
+const PUSH_BASE = 'https://push.zhouweiweihome.top'
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS })
@@ -69,6 +70,18 @@ async function askModel(env, state, thought, now) {
   } finally { clearTimeout(timeout) }
 }
 
+async function schedulePush(state, message, now) {
+  if (!state.pushDevice) return false
+  try {
+    const response = await fetch(`${PUSH_BASE}/schedule`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ device: state.pushDevice, id: message.id, at: now, title: state.roleName, body: message.text, url: state.pushUrl || '' }),
+    })
+    return response.ok
+  } catch { return false }
+}
+
 async function runRole(env, roleId, now = Date.now()) {
   const advanced = advanceThoughts(await loadState(env, roleId, now), now)
   const gate = canAttemptWake(advanced, now)
@@ -76,6 +89,8 @@ async function runRole(env, roleId, now = Date.now()) {
   const decision = await askModel(env, advanced, gate.thought, now)
   const next = applyDecision(advanced, decision, now)
   await saveState(env, next)
+  const message = next.inbox[next.inbox.length - 1]
+  if (decision.send && message) await schedulePush(next, message, now)
   return { roleId, sent: Boolean(decision.send), reason: decision.reason || (decision.send ? 'sent' : 'model-no-send') }
 }
 
@@ -95,7 +110,7 @@ export default {
       const roleId = String(body?.roleId || '').trim().slice(0, 120)
       if (!roleId) return json({ ok: false, error: '缺少 roleId' }, 400)
       const current = await loadState(env, roleId, now)
-      const next = recordChat({ ...current, roleId, roleName: body.roleName || current.roleName, personaSummary: body.personaSummary || current.personaSummary, recentSummary: body.recentSummary || current.recentSummary }, body.lastChatAt || now, now)
+      const next = recordChat({ ...current, roleId, roleName: body.roleName || current.roleName, personaSummary: body.personaSummary || current.personaSummary, recentSummary: body.recentSummary || current.recentSummary, pushDevice: body.pushDevice || current.pushDevice, pushUrl: body.pushUrl || current.pushUrl }, body.lastChatAt || now, now)
       await saveState(env, next); await registerRole(env, roleId)
       return json({ ok: true, state: publicState(next, now) })
     }
