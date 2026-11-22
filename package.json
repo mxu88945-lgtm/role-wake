@@ -1,0 +1,11 @@
+{
+  "name": "role-wake",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251121.0"
+  }
+}
