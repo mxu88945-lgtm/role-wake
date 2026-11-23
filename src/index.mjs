@@ -94,13 +94,29 @@ async function runRole(env, roleId, now = Date.now()) {
   return { roleId, sent: Boolean(decision.send), reason: decision.reason || (decision.send ? 'sent' : 'model-no-send') }
 }
 
-export default {
+const ALLOWED_ORIGINS = ['https://mxu88945-lgtm.github.io']
+function corsHeaders(request) {
+  const origin = request.headers.get('origin') || ''
+  if (!ALLOWED_ORIGINS.includes(origin) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return {}
+  return { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'authorization, content-type', 'access-control-max-age': '86400', vary: 'Origin' }
+}
+
+const worker = {
   async scheduled(_event, env, ctx) {
     const now = Date.now()
     const ids = await loadRoleIds(env)
     ctx.waitUntil(Promise.all(ids.map(roleId => runRole(env, roleId, now).catch(() => ({ roleId, sent: false, reason: 'worker-error' })))))
   },
   async fetch(request, env) {
+    const cors = corsHeaders(request)
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
+    const response = await worker.handleFetch(request, env)
+    if (!Object.keys(cors).length) return response
+    const headers = new Headers(response.headers)
+    for (const [key, value] of Object.entries(cors)) headers.set(key, value)
+    return new Response(response.body, { status: response.status, headers })
+  },
+  async handleFetch(request, env) {
     if (!authorized(request, env)) return json({ ok: false, error: '未授权' }, 401)
     const url = new URL(request.url)
     const now = Date.now()
@@ -137,3 +153,4 @@ function publicState(state, now) {
 }
 
 export { runRole }
+export default worker

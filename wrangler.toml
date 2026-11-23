@@ -3,13 +3,14 @@ main = "src/index.mjs"
 compatibility_date = "2026-11-22"
 workers_dev = true
 
+routes = [{ pattern = "wake.zhouweiweihome.top", custom_domain = true }]
+
 [triggers]
 crons = ["*/30 * * * *"]
 
 [[kv_namespaces]]
 binding = "WAKE_STATE"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+id = "9dd49d26ed7d4db0a1e983405ffd7716"
 
 [observability]
 enabled = false
