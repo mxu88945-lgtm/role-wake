@@ -151,6 +151,12 @@ const worker = {
       await saveState(env, state)
       return json({ ok: true, messages })
     }
+    if (url.pathname === '/llm-check' && request.method === 'GET') {
+      const llmKey = env.LLM_KEY || await env.WAKE_STATE.get('config:llm-key')
+      if (!env.LLM_BASE || !llmKey) return json({ ok: false, reason: 'llm-not-configured' })
+      const r = await fetch(`${String(env.LLM_BASE).replace(/\/$/, '')}/models`, { headers: { authorization: `Bearer ${llmKey.trim()}` } })
+      return json({ ok: r.ok, status: r.status, model: env.LLM_MODEL, keyLength: llmKey.length, trimmed: llmKey.trim().length })
+    }
     if (url.pathname === '/state' && request.method === 'GET') {
       const roleId = String(url.searchParams.get('roleId') || '').trim()
       if (!roleId) return json({ ok: false, error: '缺少 roleId' }, 400)
