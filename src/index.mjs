@@ -38,7 +38,8 @@ async function registerRole(env, roleId) {
 }
 
 async function askModel(env, state, thought, now) {
-  if (!env.LLM_BASE || !env.LLM_MODEL || !env.LLM_KEY) return { send: false, thought, reason: 'llm-not-configured' }
+  const llmKey = env.LLM_KEY || await env.WAKE_STATE.get('config:llm-key')
+  if (!env.LLM_BASE || !env.LLM_MODEL || !llmKey) return { send: false, thought, reason: 'llm-not-configured' }
   const p = beijingParts(now)
   const localTime = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}（北京时间）`
   const prompt = [
@@ -58,7 +59,7 @@ async function askModel(env, state, thought, now) {
     const response = await fetch(`${base}/chat/completions`, {
       method: 'POST',
       signal: controller.signal,
-      headers: { authorization: `Bearer ${env.LLM_KEY}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${llmKey}`, 'content-type': 'application/json' },
       body: JSON.stringify({ model: env.LLM_MODEL, temperature: 0.8, max_tokens: 180, messages: [{ role: 'user', content: prompt }] }),
     })
     if (!response.ok) return { send: false, thought, reason: `llm-${response.status}` }
@@ -117,6 +118,17 @@ const worker = {
     return new Response(response.body, { status: response.status, headers })
   },
   async handleFetch(request, env) {
+    const url0 = new URL(request.url)
+    // 一次性写入模型 Key：x-wake-key 验身份，Authorization 里是模型 Key（不回显）。
+    if (url0.pathname === '/admin/llm-key' && request.method === 'POST') {
+      const k = request.headers.get('x-wake-key') || ''
+      if (!env.WAKE_KEY || k !== env.WAKE_KEY) return json({ ok: false, error: '未授权' }, 401)
+      const auth = request.headers.get('authorization') || ''
+      const value = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
+      if (value.length < 8) return json({ ok: false, error: '缺少 Key' }, 400)
+      await env.WAKE_STATE.put('config:llm-key', value)
+      return json({ ok: true, length: value.length })
+    }
     if (!authorized(request, env)) return json({ ok: false, error: '未授权' }, 401)
     const url = new URL(request.url)
     const now = Date.now()
